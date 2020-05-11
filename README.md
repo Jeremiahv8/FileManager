@@ -1,7 +1,5 @@
-simple-file-manager
+FileManager
 ===================
-
-A Simple PHP file manager.  The code is a single php file.  
 
 Just copy `index.php` to a folder on your webserver.  
 
@@ -24,11 +22,11 @@ If you allow uploads on the public web, it is only a matter of time before your 
  - Use a `.htaccess` file with Apache, or `auth_basic` for nginx
  - Only use this on a private network
 
-HT: [@beardog108](https://github.com/beardog108)
+HT: [@Jeremiahv8](https://github.com/Jeremiahv8/)
 
 ## Forks
 
-- **Edit feature**. An extension of the initial project which lets you edit files and save them from the main php file. Works asynchronously with ajax requests. Link: [@diego95root](https://github.com/diego95root/File-manager-php)
+- **Edit feature**. <NO FORKS YET>
 
 ## Screenshot
 
