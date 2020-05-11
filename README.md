@@ -1,7 +1,7 @@
 FileManager
 ===================
 
-Just copy `index.php` to a folder on your webserver.  
+Just copy 'FileManager' folder to a folder on your webserver.  
 
 ## Why it is good
 
