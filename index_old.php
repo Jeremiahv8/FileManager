@@ -1,7 +1,7 @@
 <?php
 /********************************
-Simple PHP File Manager
-Copyright John Campbell (jcampbell1)
+CINFINITY FileManager
+Copyright Jeremiah Cruickshank (BlackBeatle33)
 
 Liscense: MIT
 ********************************/
@@ -14,12 +14,30 @@ $allow_delete = true; // Set to false to disable delete button and delete POST r
 $allow_upload = true; // Set to true to allow upload files
 $allow_create_folder = true; // Set to false to disable folder creation
 $allow_direct_link = true; // Set to false to only allow downloads and not direct link
-$allow_show_folders = true; // Set to false to hide all subdirectories
 
-$disallowed_patterns = ['*.php'];  // must be an array.  Matching files not allowed to be uploaded
-$hidden_patterns = ['*.php','.*']; // Matching files hidden in directory index
+$disallowed_extensions = ['php'];  // must be an array. Extensions disallowed to be uploaded
+
+$hidden_extensions = []; // must be an array of lowercase file extensions. Extensions hidden in directory index
 
 $PASSWORD = '';  // Set the password, to access the file manager... (optional)
+
+//Settings
+
+$base_dir = ''; // set base directory, something like '/.git'
+
+if ($base_dir!=='') chdir(getcwd().$base_dir);
+
+if(isset($_POST['textarea'])){
+	$data_write = $_POST['textarea'];
+	$location = $_POST['file'];
+	$fp = fopen($location, 'w');
+	fwrite($fp, $data_write);
+	fclose($fp);
+}
+if (isset($_POST['loc'])){
+	readfile($_POST['loc']);
+	exit();
+}
 
 if($PASSWORD) {
 
@@ -31,7 +49,7 @@ if($PASSWORD) {
 			$_SESSION['_sfm_allowed'] = true;
 			header('Location: ?');
 		}
-		echo '<html><body><form action=? method=post>PASSWORD:<input type=password name=p autofocus/></form></body></html>';
+		echo '<html><body><form action=? method=post>PASSWORD:<input type=password name=p /></form></body></html>';
 		exit;
 	}
 }
@@ -39,7 +57,8 @@ if($PASSWORD) {
 // must be in UTF-8 or `basename` doesn't work
 setlocale(LC_ALL,'en_US.UTF-8');
 
-$tmp_dir = dirname($_SERVER['SCRIPT_FILENAME']);
+$tmp_dir = dirname($_SERVER['SCRIPT_FILENAME']).$base_dir;
+
 if(DIRECTORY_SEPARATOR==='\\') $tmp_dir = str_replace('/',DIRECTORY_SEPARATOR,$tmp_dir);
 $tmp = get_absolute_path($tmp_dir . '/' .$_REQUEST['file']);
 
@@ -49,46 +68,31 @@ if(substr($tmp, 0,strlen($tmp_dir)) !== $tmp_dir)
 	err(403,"Forbidden");
 if(strpos($_REQUEST['file'], DIRECTORY_SEPARATOR) === 0)
 	err(403,"Forbidden");
-if(preg_match('@^.+://@',$_REQUEST['file'])) {
-	err(403,"Forbidden");
-}
 
 
-if(!$_COOKIE['_sfm_xsrf'])
-	setcookie('_sfm_xsrf',bin2hex(openssl_random_pseudo_bytes(16)));
-if($_POST) {
-	if($_COOKIE['_sfm_xsrf'] !== $_POST['xsrf'] || !$_POST['xsrf'])
-		err(403,"XSRF Failure");
-}
 
 $file = $_REQUEST['file'] ?: '.';
-
 if($_GET['do'] == 'list') {
 	if (is_dir($file)) {
 		$directory = $file;
 		$result = [];
 		$files = array_diff(scandir($directory), ['.','..']);
-		foreach ($files as $entry) if (!is_entry_ignored($entry, $allow_show_folders, $hidden_patterns)) {
-			$i = $directory . '/' . $entry;
-			$stat = stat($i);
-			$result[] = [
-				'mtime' => $stat['mtime'],
-				'size' => $stat['size'],
-				'name' => basename($i),
-				'path' => preg_replace('@^\./@', '', $i),
-				'is_dir' => is_dir($i),
-				'is_deleteable' => $allow_delete && ((!is_dir($i) && is_writable($directory)) ||
-														(is_dir($i) && is_writable($directory) && is_recursively_deleteable($i))),
-				'is_readable' => is_readable($i),
-				'is_writable' => is_writable($i),
-				'is_executable' => is_executable($i),
-			];
-		}
-		usort($result,function($f1,$f2){
-			$f1_key = ($f1['is_dir']?:2) . $f1['name'];
-			$f2_key = ($f2['is_dir']?:2) . $f2['name'];
-			return $f1_key > $f2_key;
-		});
+	    foreach($files as $entry) if($entry !== basename(__FILE__) && !in_array(strtolower(pathinfo($entry, PATHINFO_EXTENSION)), $hidden_extensions)) {
+    		$i = $directory . '/' . $entry;
+	    	$stat = stat($i);
+	        $result[] = [
+	        	'mtime' => $stat['mtime'],
+	        	'size' => $stat['size'],
+	        	'name' => basename($i),
+	        	'path' => preg_replace('@^\./@', '', $i),
+	        	'is_dir' => is_dir($i),
+	        	'is_deleteable' => $allow_delete && ((!is_dir($i) && is_writable($directory)) ||
+                                                           (is_dir($i) && is_writable($directory) && is_recursively_deleteable($i))),
+	        	'is_readable' => is_readable($i),
+	        	'is_writable' => is_writable($i),
+	        	'is_executable' => is_executable($i),
+	        ];
+	    }
 	} else {
 		err(412,"Not a Directory");
 	}
@@ -109,20 +113,18 @@ if($_GET['do'] == 'list') {
 	@mkdir($_POST['name']);
 	exit;
 } elseif ($_POST['do'] == 'upload' && $allow_upload) {
-	foreach($disallowed_patterns as $pattern)
-		if(fnmatch($pattern, $_FILES['file_data']['name']))
+	var_dump($_POST);
+	var_dump($_FILES);
+	var_dump($_FILES['file_data']['tmp_name']);
+	foreach($disallowed_extensions as $ext)
+		if(preg_match(sprintf('/\.%s$/',preg_quote($ext)), $_FILES['file_data']['name']))
 			err(403,"Files of this type are not allowed.");
 
-	$res = move_uploaded_file($_FILES['file_data']['tmp_name'], $file.'/'.$_FILES['file_data']['name']);
+	var_dump(move_uploaded_file($_FILES['file_data']['tmp_name'], $file.'/'.$_FILES['file_data']['name']));
 	exit;
 } elseif ($_GET['do'] == 'download') {
-	foreach($disallowed_patterns as $pattern)
-		if(fnmatch($pattern, $file))
-			err(403,"Files of this type are not allowed.");
-
 	$filename = basename($file);
-	$finfo = finfo_open(FILEINFO_MIME_TYPE);
-	header('Content-Type: ' . finfo_file($finfo, $file));
+	header('Content-Type: ' . mime_content_type($file));
 	header('Content-Length: '. filesize($file));
 	header(sprintf('Content-Disposition: attachment; filename=%s',
 		strpos('MSIE',$_SERVER['HTTP_REFERER']) ? rawurlencode($filename) : "\"$filename\"" ));
@@ -131,21 +133,14 @@ if($_GET['do'] == 'list') {
 	exit;
 }
 
-function is_entry_ignored($entry, $allow_show_folders, $hidden_patterns) {
-	if ($entry === basename(__FILE__)) {
-		return true;
-	}
 
-	if (is_dir($entry) && !$allow_show_folders) {
-		return true;
-	}
-	foreach($hidden_patterns as $pattern) {
-		if(fnmatch($pattern,$entry)) {
-			return true;
-		}
-	}
-	return false;
+if(!$_COOKIE['_sfm_xsrf'])
+	setcookie('_sfm_xsrf',bin2hex(openssl_random_pseudo_bytes(16)));
+if($_POST) {
+	if($_COOKIE['_sfm_xsrf'] !== $_POST['xsrf'] || !$_POST['xsrf'] || !$_POST['loc'] || !$_POST['textarea'])
+		err(403,"XSRF Failure");
 }
+
 
 function rmrf($dir) {
 	if(is_dir($dir)) {
@@ -188,7 +183,6 @@ function get_absolute_path($path) {
 
 function err($code,$msg) {
 	http_response_code($code);
-	header("Content-Type: application/json");
 	echo json_encode(['error' => ['code'=>intval($code), 'msg' => $msg]]);
 	exit;
 }
@@ -203,9 +197,9 @@ $MAX_UPLOAD_SIZE = min(asBytes(ini_get('post_max_size')), asBytes(ini_get('uploa
 <!DOCTYPE html>
 <html><head>
 <meta http-equiv="content-type" content="text/html; charset=utf-8">
-<link rel="shortcut icon" type="image/png" href="favicon.png"/>
 
 <style>
+
 body {font-family: "lucida grande","Segoe UI",Arial, sans-serif; font-size: 14px;width:1024;padding:1em;margin:0;}
 th {font-weight: normal; color: #1F75CC; background-color: #F0F9FF; padding:.5em 1em .5em .2em;
 	text-align: left;cursor:pointer;user-select: none;}
@@ -238,7 +232,8 @@ td.first {font-size:14px;white-space: normal;}
 td.empty { color:#777; font-style: italic; text-align: center;padding:3em 0;}
 .is_dir .size {color:transparent;font-size:0;}
 .is_dir .size:before {content: "--"; font-size:14px;color:#333;}
-.is_dir .download{visibility: hidden}
+.is_dir .download {visibility: hidden}
+.is_dir .edit {visibility: hidden}
 a.delete {display:inline-block;
 	background: url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAoAAAAKCAYAAACNMs+9AAAABGdBTUEAAK/INwWK6QAAABl0RVh0U29mdHdhcmUAQWRvYmUgSW1hZ2VSZWFkeXHJZTwAAADtSURBVHjajFC7DkFREJy9iXg0t+EHRKJDJSqRuIVaJT7AF+jR+xuNRiJyS8WlRaHWeOU+kBy7eyKhs8lkJrOzZ3OWzMAD15gxYhB+yzAm0ndez+eYMYLngdkIf2vpSYbCfsNkOx07n8kgWa1UpptNII5VR/M56Nyt6Qq33bbhQsHy6aR0WSyEyEmiCG6vR2ffB65X4HCwYC2e9CTjJGGok4/7Hcjl+ImLBWv1uCRDu3peV5eGQ2C5/P1zq4X9dGpXP+LYhmYz4HbDMQgUosWTnmQoKKf0htVKBZvtFsx6S9bm48ktaV3EXwd/CzAAVjt+gHT5me0AAAAASUVORK5CYII=) no-repeat scroll 0 2px;
 	color:#d00;	margin-left: 15px;font-size:11px;padding:0 0 0 13px;
@@ -255,6 +250,86 @@ a.delete {display:inline-block;
 	background: url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAB2klEQVR4nJ2ST2sTQRiHn5mdmj92t9XmUJIWJGq9NHrRgxQiCtqbl97FqxgaL34CP0FD8Qv07EHEU0Ew6EXEk6ci8Q9JtcXEkHR3k+zujIdUqMkmiANzmJdnHn7vzCuIWbe291tSkvhz1pr+q1L2bBwrRgvFrcZKKinfP9zI2EoKmm7Azstf3V7fXK2Wc3ujvIqzAhglwRJoS2ImQZMEBjgyoDS4hv8QGHA1WICvp9yelsA7ITBTIkwWhGBZ0Iv+MUF+c/cB8PTHt08snb+AGAACZDj8qIN6bSe/uWsBb2qV24/GBLn8yl0plY9AJ9NKeL5ICyEIQkkiZenF5XwBDAZzWItLIIR6LGfk26VVxzltJ2gFw2a0FmQLZ+bcbo/DPbcd+PrDyRb+GqRipbGlZtX92UvzjmUpEGC0JgpC3M9dL+qGz16XsvcmCgCK2/vPtTNzJ1x2kkZIRBSivh8Z2Q4+VkvZy6O8HHvWyGyITvA1qndNpxfguQNkc2CIzM0xNk5QLedCEZm1VKsf2XrAXMNrA2vVcq4ZJ4DhvCSAeSALXASuLBTW129U6oPrT969AK4Bq0AeWARs4BRgieMUEkgDmeO9ANipzDnH//nFB0KgAxwATaAFeID5DQNatLGdaXOWAAAAAElFTkSuQmCC) no-repeat scroll 0px 5px;
 	padding:4px 0 4px 20px;
 }
+
+.edit {
+	background: url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAA8AAAAPCAYAAAA71pVKAAAAAXNSR0IArs4c6QAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAAACXBIWXMAAAsTAAALEwEAmpwYAAABWWlUWHRYTUw6Y29tLmFkb2JlLnhtcAAAAAAAPHg6eG1wbWV0YSB4bWxuczp4PSJhZG9iZTpuczptZXRhLyIgeDp4bXB0az0iWE1QIENvcmUgNS40LjAiPgogICA8cmRmOlJERiB4bWxuczpyZGY9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkvMDIvMjItcmRmLXN5bnRheC1ucyMiPgogICAgICA8cmRmOkRlc2NyaXB0aW9uIHJkZjphYm91dD0iIgogICAgICAgICAgICB4bWxuczp0aWZmPSJodHRwOi8vbnMuYWRvYmUuY29tL3RpZmYvMS4wLyI+CiAgICAgICAgIDx0aWZmOk9yaWVudGF0aW9uPjE8L3RpZmY6T3JpZW50YXRpb24+CiAgICAgIDwvcmRmOkRlc2NyaXB0aW9uPgogICA8L3JkZjpSREY+CjwveDp4bXBtZXRhPgpMwidZAAAB30lEQVQoFXWSzUuUURTGf/d1nCHFD0YCwcW4EaGFgivbCC0URXKnCLqpCJEg8B+QCRftKnIjobjwk+xv0JYt2oiimxYhuRJKU0dtxrk99857p9HqwH3vee85z3nOF/xH7HuqnMmu0GPX+aqzbVfp9W8W427/cUqlWBmNwdosSbr4SIL7nMqjmu/8YtCM8skFjypBZf1FHLSNbi7Z4yeHAsI1aVnSwS8RlHC7iGaEaztPRozv5PxNbK+J6MdywT6b3neY4l9ghuXipI4n3KFdwHbdHQJ/UNKzJsulyolUVvFG2p5Vj3aJTsGfiQedHLXcpUijecq+A5ItEdwAO0IvSabUqrRY87prOFfNZ7z0tntqpobg9HLadouEeUDBLtOnIY161kgVJ+WVY9E8Yif0wwcJ4Hg0BftK1aV4LkhKnb0SZ0rsu9LeekDoR4wupb2hOpw0i7GGQQrSqxTCbYHhjXnMUeiHcwsSeVY3mkUaVUkLx8zIeECDEs5rLD9Y88578RQCUndEWIgkrWI5NGNMCzTACZ+VwZyZIOf7kVW/b0m5YYrbJPOX2J7R/5wCbYR+3ML53z9gt3ZuBksMyZKhnoV/ASrfIjQ3/2B9mya1w3kzrk16qHRLm1TauEpUrP8Gm5GUcUxRg/cAAAAASUVORK5CYII=) no-repeat scroll 0px 5px;
+	padding:4px 20px 4px 20px;
+	color: orange;
+}
+
+#textarea {
+	width: 1200px;
+	height: 500px;
+	background-color: rgb(240,240,240);
+	resize: none;
+	-webkit-border-radius: 2px;
+  -moz-border-radius: 2px;
+  border-radius: 2px;
+	border: 2px solid rgb(125,125,125);
+	outline:none;
+	font-family: "lucida grande","Segoe UI",Arial, sans-serif; font-size: 14px;
+	padding: 10px;
+}
+
+.control {
+	border: 1px solid rgb(125,125,125);
+	-webkit-border-radius: 2px;
+  -moz-border-radius: 2px;
+  border-radius: 2px;
+	background-color: rgb(240,240,240);
+	font-family: "lucida grande","Segoe UI",Arial, sans-serif; font-size: 12px;
+	-webkit-transition: .25s; /* Safari */
+  transition: .25s;
+}
+
+.control:hover {
+	cursor: pointer;
+	background-color: rgb(200,200,200);
+	-webkit-transition: .25s; /* Safari */
+  transition: .25s;
+}
+
+#overlay-back {
+    position   : absolute;
+    top        : 0;
+    left       : 0;
+    width      : 100%;
+    height     : 100%;
+    background : #000;
+    opacity    : 0;
+    filter     : alpha(opacity=60);
+    z-index    : 5;
+		-webkit-transition: .3s; /* Safari */
+	  transition: .3s;
+		visibility: hidden;
+}
+
+#whole {
+	opacity: 0;
+	-webkit-transition: .3s; /* Safari */
+	transition: .3s;
+	visibility: hidden;
+}
+
+#saved {
+	position   : absolute;
+	background : #aaa;
+	opacity    : 0;
+	filter     : alpha(opacity=60);
+	-webkit-transition: .3s; /* Safari */
+	transition: .3s;
+	visibility: hidden;
+	z-index  : 14;
+	color:white;
+	top:50%;
+	left:50%;
+	transform: translate(-50%, -50%);
+	padding:40px;
+	border-radius: 2px;
+	border: 1.5px solid #777;
+	font-family: "lucida grande","Segoe UI",Arial, sans-serif; font-size: 28px;
+}
+
 </style>
 <script src="//ajax.googleapis.com/ajax/libs/jquery/1.8.2/jquery.min.js"></script>
 <script>
@@ -410,14 +485,17 @@ $(function(){
 	}
 	function renderFileRow(data) {
 		var $link = $('<a class="name" />')
-			.attr('href', data.is_dir ? '#' + encodeURIComponent(data.path) : './' + data.path)
+			.attr('href', data.is_dir ? '#' + encodeURIComponent(data.path) : '<?php echo $base_dir?>/'+ encodeURIComponent(data.path))
 			.text(data.name);
 		var allow_direct_link = <?php echo $allow_direct_link?'true':'false'; ?>;
         	if (!data.is_dir && !allow_direct_link)  $link.css('pointer-events','none');
 		var $dl_link = $('<a/>').attr('href','?do=download&file='+ encodeURIComponent(data.path))
 			.addClass('download').text('download');
+		var $edit_link = $('<a/>').attr('href','javascript:edit_file(\''+ encodeURIComponent(data.path)+'\'); try {document.getElementById("mceu_28-body").remove()} catch(err){}')
+			.addClass('edit').text('edit');
 		var $delete_link = $('<a href="#" />').attr('data-file',data.path).addClass('delete').text('delete');
 		var perms = [];
+		perms.push('<?php echo get_current_user() ?>');
 		if(data.is_readable) perms.push('read');
 		if(data.is_writable) perms.push('write');
 		if(data.is_executable) perms.push('exec');
@@ -427,19 +505,19 @@ $(function(){
 			.append( $('<td/>').attr('data-sort',data.is_dir ? -1 : data.size)
 				.html($('<span class="size" />').text(formatFileSize(data.size))) )
 			.append( $('<td/>').attr('data-sort',data.mtime).text(formatTimestamp(data.mtime)) )
-			.append( $('<td/>').text(perms.join('+')) )
-			.append( $('<td/>').append($dl_link).append( data.is_deleteable ? $delete_link : '') )
+			.append( $('<td/>').text(perms.slice(0,1) + ": " + perms.slice(1).join('+')) )
+			.append( $('<td/>').append($edit_link).append($dl_link).append( data.is_deleteable ? $delete_link : '') )
 		return $html;
 	}
 	function renderBreadcrumbs(path) {
 		var base = "",
 			$html = $('<div/>').append( $('<a href=#>Home</a></div>') );
-		$.each(path.split('%2F'),function(k,v){
+		$.each(path.split('/'),function(k,v){
 			if(v) {
 				var v_as_text = decodeURIComponent(v);
 				$html.append( $('<span/>').text(' ▸ ') )
 					.append( $('<a/>').attr('href','#'+base+v).text(v_as_text) );
-				base += v + '%2F';
+				base += v + '/';
 			}
 		});
 		return $html;
@@ -458,9 +536,66 @@ $(function(){
 		return pos ? [parseInt(d/10),".",d%10," ",s[pos]].join('') : bytes + ' bytes';
 	}
 })
+function edit_file(path){
+	window.cwfile = path;
+	/* HANDLE REQUESTS WIHTOUT POST
+	$.ajax({
+    url:path,
+    success: function (data){
+      document.getElementById('textarea').value = data;
+    }
+  });
+	*/
+	$.ajax({
+			 type: "POST",
+			 url: '<?php echo basename(__FILE__) ?>',
+			 data: {loc:path},
+			 success: function (data2){
+				 document.getElementById('textarea').value = data2;
+			 }
+	 });
+	appear();
+	document.getElementById("whole").style.opacity = "1";
+	document.getElementById("overlay-back").style.opacity = "0.6";
+}
+
+function ajaxSave() {
+	 var data = document.getElementById('textarea').value;
+	 $.ajax({
+        type: "POST",
+        url: '<?php echo basename(__FILE__) ?>',
+        data: {textarea: data, file: window.cwfile}
+    });
+		document.getElementById("saved").style.visibility = "visible";
+		document.getElementById("saved").style.opacity = "1";
+		setTimeout(function(){
+			document.getElementById("saved").style.opacity = "0";
+			document.getElementById("saved").style.visibility = "hidden";
+		},1000);
+}
+
+function close_editor(){
+	document.getElementById("overlay-back").style.opacity = "0";
+	document.getElementById("whole").style.opacity = "0";
+	disappear();
+}
+
+function appear(){
+	document.getElementById("overlay-back").style.visibility = "visible";
+	document.getElementById("whole").style.visibility = "visible";
+}
+
+function disappear(){
+	document.getElementById("overlay-back").style.visibility = "hidden";
+	document.getElementById("whole").style.visibility = "hidden";
+}
+
 
 </script>
-</head><body>
+</head>
+<body>
+<div id="overlay-back"></div>
+<div id="saved">The file was saved</div>
 <div id="top">
    <?php if($allow_create_folder): ?>
 	<form action="?" method="post" id="mkdir" />
@@ -491,6 +626,15 @@ $(function(){
 </tr></thead><tbody id="list">
 
 </tbody></table>
+<div id="whole" style="position:absolute; z-index  : 10; top:50%; left:50%; transform: translate(-50%, -50%);">
+	<div style="display:inline-block;">
+		<div style="">
+			<textarea style="display:block; margin-bottom:5px" id="textarea" wrap="hard">Type some text here.</textarea>
+			<button class="control" style="display:inline-block; float:right" onclick="close_editor()">Cancel</button>
+			<button class="control" style="display:inline-block; float:right" onclick="ajaxSave()">Save</button>
+		</div>
+	</div>
+</div>
 <footer>FileManager by <a href="https://github.com/jcampbell1">jcampbell1 modified by <a href="https://github.com/Jeremiahv8/">Jeremiahv8</a></footer>
 </body>
 </html>
