@@ -1,5 +1,8 @@
-<link href="css-circular-prog-bar.css" media="all" rel="stylesheet" />
-<script src="statistics.js"></script>
+<link href="../css-circular-prog-bar.css" media="all" rel="stylesheet" />
+<link rel="stylesheet" type="text/css" href="../statistics-ui.css"/>
+
+
+<script src="../statistics.js"></script>
 
 <style>
 body,html {
@@ -8,26 +11,68 @@ body,html {
 </style>
 
 
-<h2>Storage Statistics</h2>
-<br>
 
+<div>
+    <h2>Storage Statistics</h2> 
+    <label class="switch">
+        <input id="StorageStatistics_isENabled" type="checkbox">
+        <span>
+            <em></em>
+            <strong></strong>
+        </span>
+    </label>
+</div>
 
-<span class="DiskSpace">
-    <h3>Disk Space</h3>
-    <span class="DiskSpace_Raw"></span>
-</span>    
+<div id="Statistics_Container">
+    <div id="StorageStatistics_Base"  class="Statistics_Container_Item">
+        <span class="DiskSpace">
+            <h3>Disk Space</h3>
+            <span class="DiskSpace_Raw"></span>
+            <br>
+            <span class="DiskSpace_Percentage"></span>
+            <br>
+            <span class="DiskSpace_Remaining"></span>
+        </span>    
+    </div>
+
+    <div id="BandwidthStatistics_Base" class="Statistics_Container_Item">
+        <span class="Bandwidth">
+            <h3>Bandwidth Usage</h3>
+            <span class="DiskSpace_Raw"></span>
+            <br>
+            <span class="DiskSpace_Percentage"></span>
+            <br>
+            <span class="DiskSpace_Remaining"></span>
+        </span>    
+    </div>
+
+    <div id="UserStatsStatistics_Base" class="Statistics_Container_Item">
+        <span class="UserStats">
+            <h3>User Stats</h3>
+            <span class="DiskSpace_Raw"></span>
+            <br>
+            <span class="DiskSpace_Percentage"></span>
+            <br>
+            <span class="DiskSpace_Remaining"></span>
+        </span>    
+    </div>
+</div>
+
+<div id="Idle_Base">
+    <div class="container">
+        <span>
+            <h3>Hi, It seems kind of quiet on your end so we've pause FileManager to save resources.</h3>
+            <h4>Move your cursor when you're ready to continue working.</h4>
+        </span>
+    </div>
+</div>
 
 <?php
     $folder_name = "./public//";
 
-    $public_Storage = 100;
-    $current_public_Storage = formatBytes(folderSize($folder_name));
-
-    echo "Raw: ". formatMB($current_public_Storage)." / ". formatMB($public_Storage);
-    //echo "<br>Simple: ".$current_public_Storage ."/". $public_Storage;
-    $current_public_percentage_Storage = round($current_public_Storage / $public_Storage * 100, 2);
-    echo "<br>Percentage: ".$current_public_percentage_Storage ."%";
-
+    //$public_Storage = 100000;
+    //$current_public_Storage = folderSize($folder_name);
+    //$current_public_percentage_Storage = round($current_public_Storage / $public_Storage * 100, 2);
 
     function folderSize($dir){
         $count_size = 0;
@@ -47,11 +92,6 @@ body,html {
         return $count_size;
     }
 
-    function formatBytes($bytes) { 
-        $value = "";
-        $value = round($bytes * 0.00000095367432, 2);
-        return $value;
-    }
 
     function formatMB($MB) { 
         $value = $MB;

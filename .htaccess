@@ -1,0 +1,26 @@
+RewriteEngine On 
+# force https
+RewriteCond %{HTTPS} off 
+RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+
+
+# you can add whatever extensions you want routed to your php script
+#RewriteCond %{HTTP_HOST} ^filemanager.aegeantt.com$ [NC]
+RewriteCond %{REQUEST_URI} ^/public/ [NC]
+RewriteCond %{REQUEST_URI} \.(doc|zip|pdf|jpg|png|txt|mp4|mp3)$ [NC]
+# 'aaa' is the access key, this will be hashed and changed dynamically in future versions
+
+RewriteCond %{HTTP_REFERER} !^$
+
+RewriteCond %{QUERY_STRING} !^(access=aaa)$
+RewriteRule ^(.*)$ /view-file.php?filename=$1&access=aaa [L]
+
+RewriteRule ^$ /public [L]
+
+# php -- BEGIN cPanel-generated handler, do not edit
+# Set the “ea-php71” package as the default “PHP” programming language.
+<IfModule mime_module>
+  AddHandler application/x-httpd-ea-php71 .php .php7 .phtml
+</IfModule>
+# php -- END cPanel-generated handler, do not edit
